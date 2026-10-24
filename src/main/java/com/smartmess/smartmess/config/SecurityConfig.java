@@ -24,7 +24,7 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
                 // open to everyone: the home page, static files, register, login
-                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**").permitAll()
+                .requestMatchers("/", "/*.html", "/css/**", "/js/**", "/images/**").permitAll()
                 .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                 // role-based areas
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")

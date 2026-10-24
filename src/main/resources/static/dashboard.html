@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dashboard - SmartMess</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">SmartMess Dashboard</h3>
+        <button id="logout" class="btn btn-outline-danger btn-sm">Logout</button>
+    </div>
+
+    <p id="who" class="lead"></p>
+
+    <div id="adminArea" class="d-none">
+        <h5>Students waiting for approval</h5>
+        <table class="table table-bordered bg-white">
+            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th></th></tr></thead>
+            <tbody id="pendingBody"></tbody>
+        </table>
+        <p id="emptyMsg" class="text-muted d-none">No pending students.</p>
+    </div>
+</div>
+
+<script>
+    async function loadMe() {
+        const res = await fetch("/api/auth/me");
+        if (res.status === 401) {            // not logged in
+            window.location.href = "login.html";
+            return;
+        }
+        const me = await res.json();
+        document.getElementById("who").textContent = "Logged in as " + me.email;
+        if (me.roles.includes("ROLE_ADMIN")) {
+            document.getElementById("adminArea").classList.remove("d-none");
+            loadPending();
+        }
+    }
+
+    async function loadPending() {
+        const res = await fetch("/api/admin/students/pending");
+        const students = await res.json();
+        const body = document.getElementById("pendingBody");
+        body.innerHTML = "";
+        document.getElementById("emptyMsg").classList.toggle("d-none", students.length > 0);
+
+        students.forEach(s => {
+            const row = document.createElement("tr");
+            [s.name, s.email, s.hostelRoom || ""].forEach(text => {
+                const td = document.createElement("td");
+                td.textContent = text;           // textContent keeps names safe
+                row.appendChild(td);
+            });
+            const td = document.createElement("td");
+            const btn = document.createElement("button");
+            btn.className = "btn btn-success btn-sm";
+            btn.textContent = "Approve";
+            btn.addEventListener("click", async () => {
+                await fetch("/api/admin/students/" + s.id + "/approve", { method: "POST" });
+                loadPending();
+            });
+            td.appendChild(btn);
+            row.appendChild(td);
+            body.appendChild(row);
+        });
+    }
+
+    document.getElementById("logout").addEventListener("click", async () => {
+        await fetch("/api/auth/logout", { method: "POST" });
+        window.location.href = "login.html";
+    });
+
+    loadMe();
+</script>
+</body>
+</html>
