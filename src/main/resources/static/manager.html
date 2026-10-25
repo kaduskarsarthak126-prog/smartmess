@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Ye line phone par page ko sahi size mein dikhati hai (mobile friendly) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SmartMess - Manager</title>
+  <!-- Bootstrap 5 CDN: ready-made styling -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container py-3">
+  <h4 class="mb-3">Manager Panel</h4>
+
+  <!-- Message box: success ya error yahan dikhega -->
+  <div id="message" class="alert d-none"></div>
+
+  <!-- Dish add karne ka form -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Add Dish</h5>
+      <div class="row g-2">
+        <div class="col-12 col-md-4">
+          <input id="dishName" class="form-control" placeholder="Dish name (e.g. Dal)">
+        </div>
+        <div class="col-12 col-md-2">
+          <input id="dishCategory" class="form-control" placeholder="Category">
+        </div>
+        <div class="col-6 col-md-2">
+          <input id="dishLimit" type="number" step="0.1" class="form-control" placeholder="Limit kg">
+        </div>
+        <div class="col-6 col-md-2">
+          <input id="dishPortion" type="number" step="0.01" class="form-control" placeholder="Portion kg">
+        </div>
+        <div class="col-12 col-md-2">
+          <button class="btn btn-primary w-100" onclick="addDish()">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dish list -->
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title">All Dishes</h5>
+      <!-- table-responsive: chhoti screen par table side mein scroll hoti hai -->
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead>
+            <tr><th>ID</th><th>Name</th><th>Category</th><th>Limit (kg)</th><th>Portion (kg)</th></tr>
+          </thead>
+          <tbody id="dishTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Message dikhane ka chhota function. type = "success" ya "danger"
+  function showMessage(text, type) {
+    const box = document.getElementById("message");
+    box.textContent = text;
+    box.className = "alert alert-" + type;
+  }
+
+  // Har API call ke baad check: login nahi hai (401) to login page par bhej do
+  function checkLogin(response) {
+    if (response.status === 401) {
+      window.location.href = "login.html";
+      return false;
+    }
+    return true;
+  }
+
+  // Server se saari dishes mangwao aur table mein dikhao
+  async function loadDishes() {
+    const response = await fetch("/api/manager/dishes");
+    if (!checkLogin(response)) return;
+    if (response.status === 403) {
+      showMessage("Only manager can open this page", "danger");
+      return;
+    }
+    const dishes = await response.json();
+
+    const tbody = document.getElementById("dishTable");
+    tbody.innerHTML = "";   // purani rows hatao
+    for (const dish of dishes) {
+      const row = document.createElement("tr");
+      // textContent use kiya (innerHTML nahi) taaki koi galat HTML/script dish name se na chal sake
+      for (const value of [dish.id, dish.name, dish.category || "-", dish.defaultLimitKg, dish.portionPerPerson]) {
+        const cell = document.createElement("td");
+        cell.textContent = value;
+        row.appendChild(cell);
+      }
+      tbody.appendChild(row);
+    }
+  }
+
+  // Form ka data lekar POST /api/manager/dishes bhejo
+  async function addDish() {
+    const name = document.getElementById("dishName").value.trim();
+    const category = document.getElementById("dishCategory").value.trim();
+    const limit = document.getElementById("dishLimit").value;
+    const portion = document.getElementById("dishPortion").value;
+
+    // Khali field ke liye null bhejte hain, server default laga dega (5.0 aur 0.15)
+    const body = {
+      name: name,
+      category: category || null,
+      defaultLimitKg: limit ? Number(limit) : null,
+      portionPerPerson: portion ? Number(portion) : null
+    };
+
+    const response = await fetch("/api/manager/dishes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!checkLogin(response)) return;
+
+    if (response.status === 201) {
+      showMessage("Dish added: " + name, "success");
+      // form saaf karo
+      for (const id of ["dishName", "dishCategory", "dishLimit", "dishPortion"]) {
+        document.getElementById(id).value = "";
+      }
+      loadDishes();   // list dobara load
+    } else if (response.status === 409) {
+      showMessage("This dish already exists", "danger");
+    } else if (response.status === 400) {
+      showMessage("Please enter a valid dish name, limit and portion", "danger");
+    } else {
+      showMessage("Something went wrong (status " + response.status + ")", "danger");
+    }
+  }
+
+  // Page khulte hi dishes load ho jayein
+  loadDishes();
+</script>
+</body>
+</html>
