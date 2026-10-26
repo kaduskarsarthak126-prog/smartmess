@@ -2,30 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Ye line phone par page ko sahi size mein dikhati hai (mobile friendly) -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SmartMess - Manager</title>
-  <!-- Bootstrap 5 CDN: ready-made styling -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-
 <div class="container py-3">
-  <h4 class="mb-3">Manager Panel</h4>
 
-  <!-- Message box: success ya error yahan dikhega -->
-  <div id="message" class="alert d-none"></div>
+  <h3 class="mb-3">Mess Manager Panel</h3>
 
-  <!-- Dish add karne ka form -->
+  <!-- Message box: success / error dikhane ke liye -->
+  <div id="message" class="alert d-none" role="alert"></div>
+
+  <!-- ================= ADD DISH ================= -->
   <div class="card mb-4">
+    <div class="card-header fw-bold">Add Dish</div>
     <div class="card-body">
-      <h5 class="card-title">Add Dish</h5>
       <div class="row g-2">
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-3">
           <input id="dishName" class="form-control" placeholder="Dish name (e.g. Dal)">
         </div>
-        <div class="col-12 col-md-2">
-          <input id="dishCategory" class="form-control" placeholder="Category">
+        <div class="col-6 col-md-3">
+          <input id="dishCategory" class="form-control" placeholder="Category (e.g. Curry)">
         </div>
         <div class="col-6 col-md-2">
           <input id="dishLimit" type="number" step="0.1" class="form-control" placeholder="Limit kg">
@@ -33,39 +31,86 @@
         <div class="col-6 col-md-2">
           <input id="dishPortion" type="number" step="0.01" class="form-control" placeholder="Portion kg">
         </div>
-        <div class="col-12 col-md-2">
+        <div class="col-6 col-md-2">
           <button class="btn btn-primary w-100" onclick="addDish()">Add</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Dish list -->
-  <div class="card">
-    <div class="card-body">
-      <h5 class="card-title">All Dishes</h5>
-      <!-- table-responsive: chhoti screen par table side mein scroll hoti hai -->
-      <div class="table-responsive">
-        <table class="table table-sm">
-          <thead>
-            <tr><th>ID</th><th>Name</th><th>Category</th><th>Limit (kg)</th><th>Portion (kg)</th></tr>
-          </thead>
-          <tbody id="dishTable"></tbody>
-        </table>
-      </div>
+  <!-- ================= ALL DISHES ================= -->
+  <div class="card mb-4">
+    <div class="card-header fw-bold">All Dishes</div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr><th>Name</th><th>Category</th><th>Limit (kg)</th><th>Portion (kg)</th></tr>
+        </thead>
+        <tbody id="dishTable"></tbody>
+      </table>
     </div>
   </div>
+
+  <!-- ================= CREATE MENU ================= -->
+  <div class="card mb-4">
+    <div class="card-header fw-bold">Create Menu</div>
+    <div class="card-body">
+      <div class="row g-2 mb-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label mb-0">Date</label>
+          <input id="menuDate" type="date" class="form-control">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-0">Meal</label>
+          <select id="menuMeal" class="form-select">
+            <option value="LUNCH">LUNCH</option>
+            <option value="DINNER">DINNER</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label mb-0">Choice deadline</label>
+          <input id="menuDeadline" type="datetime-local" class="form-control">
+        </div>
+      </div>
+
+      <label class="form-label mb-1">Select dishes</label>
+      <!-- Checkboxes yahan JS se bante hain (loadDishes ke andar) -->
+      <div id="dishCheckboxes" class="mb-3"></div>
+
+      <button class="btn btn-success" onclick="createMenu()">Create Menu</button>
+    </div>
+  </div>
+
+  <!-- ================= VIEW MENUS BY DATE ================= -->
+  <div class="card mb-4">
+    <div class="card-header fw-bold">View Menus by Date</div>
+    <div class="card-body">
+      <div class="row g-2 mb-3">
+        <div class="col-8 col-md-4">
+          <input id="viewDate" type="date" class="form-control">
+        </div>
+        <div class="col-4 col-md-2">
+          <button class="btn btn-primary w-100" onclick="viewMenus()">View</button>
+        </div>
+      </div>
+      <div id="menuList"></div>
+    </div>
+  </div>
+
 </div>
 
 <script>
-  // Message dikhane ka chhota function. type = "success" ya "danger"
+  // ---------- Helper: message dikhana ----------
+  // type = "success" ya "danger" (Bootstrap alert colors)
   function showMessage(text, type) {
     const box = document.getElementById("message");
-    box.textContent = text;
     box.className = "alert alert-" + type;
+    box.textContent = text;           // textContent = safe (HTML inject nahi hota)
+    window.scrollTo(0, 0);
   }
 
-  // Har API call ke baad check: login nahi hai (401) to login page par bhej do
+  // ---------- Helper: login check ----------
+  // 401 aaye matlab login nahi hai -> login page par bhejo
   function checkLogin(response) {
     if (response.status === 401) {
       window.location.href = "login.html";
@@ -74,69 +119,155 @@
     return true;
   }
 
-  // Server se saari dishes mangwao aur table mein dikhao
-  async function loadDishes() {
-    const response = await fetch("/api/manager/dishes");
-    if (!checkLogin(response)) return;
-    if (response.status === 403) {
-      showMessage("Only manager can open this page", "danger");
-      return;
-    }
-    const dishes = await response.json();
-
-    const tbody = document.getElementById("dishTable");
-    tbody.innerHTML = "";   // purani rows hatao
-    for (const dish of dishes) {
-      const row = document.createElement("tr");
-      // textContent use kiya (innerHTML nahi) taaki koi galat HTML/script dish name se na chal sake
-      for (const value of [dish.id, dish.name, dish.category || "-", dish.defaultLimitKg, dish.portionPerPerson]) {
-        const cell = document.createElement("td");
-        cell.textContent = value;
-        row.appendChild(cell);
-      }
-      tbody.appendChild(row);
+  // ---------- Helper: server ka error text nikalna ----------
+  async function errorText(response) {
+    try {
+      const data = await response.json();
+      return data.message || data.error || ("Error " + response.status);
+    } catch (e) {
+      return "Error " + response.status;
     }
   }
 
-  // Form ka data lekar POST /api/manager/dishes bhejo
+  // ---------- DISHES ----------
+  async function loadDishes() {
+    const response = await fetch("/api/manager/dishes");
+    if (!checkLogin(response)) return;
+    if (!response.ok) { showMessage(await errorText(response), "danger"); return; }
+    const dishes = await response.json();
+
+    // 1) Table bharna
+    const tbody = document.getElementById("dishTable");
+    tbody.replaceChildren();
+    dishes.forEach(d => {
+      const tr = document.createElement("tr");
+      [d.name, d.category, d.defaultLimitKg, d.portionPerPerson].forEach(val => {
+        const td = document.createElement("td");
+        td.textContent = val ?? "";
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    // 2) Menu ke checkboxes bharna (same list se)
+    const box = document.getElementById("dishCheckboxes");
+    box.replaceChildren();
+    dishes.forEach(d => {
+      const wrap = document.createElement("div");
+      wrap.className = "form-check form-check-inline";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "form-check-input dish-cb";
+      cb.value = d.id;
+      cb.id = "dish_" + d.id;
+
+      const label = document.createElement("label");
+      label.className = "form-check-label";
+      label.htmlFor = cb.id;
+      label.textContent = d.name;
+
+      wrap.appendChild(cb);
+      wrap.appendChild(label);
+      box.appendChild(wrap);
+    });
+  }
+
   async function addDish() {
-    const name = document.getElementById("dishName").value.trim();
-    const category = document.getElementById("dishCategory").value.trim();
-    const limit = document.getElementById("dishLimit").value;
-    const portion = document.getElementById("dishPortion").value;
-
-    // Khali field ke liye null bhejte hain, server default laga dega (5.0 aur 0.15)
     const body = {
-      name: name,
-      category: category || null,
-      defaultLimitKg: limit ? Number(limit) : null,
-      portionPerPerson: portion ? Number(portion) : null
+      name: document.getElementById("dishName").value.trim(),
+      category: document.getElementById("dishCategory").value.trim(),
+      defaultLimitKg: parseFloat(document.getElementById("dishLimit").value),
+      portionPerPerson: parseFloat(document.getElementById("dishPortion").value)
     };
-
     const response = await fetch("/api/manager/dishes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
     if (!checkLogin(response)) return;
-
-    if (response.status === 201) {
-      showMessage("Dish added: " + name, "success");
-      // form saaf karo
-      for (const id of ["dishName", "dishCategory", "dishLimit", "dishPortion"]) {
-        document.getElementById(id).value = "";
-      }
-      loadDishes();   // list dobara load
-    } else if (response.status === 409) {
-      showMessage("This dish already exists", "danger");
-    } else if (response.status === 400) {
-      showMessage("Please enter a valid dish name, limit and portion", "danger");
+    if (response.ok) {
+      showMessage("Dish added!", "success");
+      ["dishName", "dishCategory", "dishLimit", "dishPortion"]
+        .forEach(id => document.getElementById(id).value = "");
+      loadDishes();
     } else {
-      showMessage("Something went wrong (status " + response.status + ")", "danger");
+      showMessage(await errorText(response), "danger");
     }
   }
 
-  // Page khulte hi dishes load ho jayein
+  // ---------- CREATE MENU ----------
+  async function createMenu() {
+    const menuDate = document.getElementById("menuDate").value;
+    const mealType = document.getElementById("menuMeal").value;
+    let deadline = document.getElementById("menuDeadline").value;
+
+    // Selected checkboxes ki ids list banana
+    const dishIds = Array.from(document.querySelectorAll(".dish-cb:checked"))
+                         .map(cb => Number(cb.value));
+
+    if (!menuDate || !deadline || dishIds.length === 0) {
+      showMessage("Date, deadline aur kam se kam ek dish select karo.", "danger");
+      return;
+    }
+
+    // datetime-local "2026-10-25T10:00" deta hai, backend ko seconds chahiye
+    if (deadline.length === 16) deadline += ":00";
+
+    const response = await fetch("/api/manager/menus", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ menuDate, mealType, choiceDeadline: deadline, dishIds })
+    });
+    if (!checkLogin(response)) return;
+    if (response.ok) {
+      showMessage("Menu created!", "success");
+      document.getElementById("viewDate").value = menuDate;  // seedha wahi date dikha do
+      viewMenus();
+    } else {
+      showMessage(await errorText(response), "danger");
+    }
+  }
+
+  // ---------- VIEW MENUS ----------
+  async function viewMenus() {
+    const date = document.getElementById("viewDate").value;
+    if (!date) { showMessage("Pehle date chuno.", "danger"); return; }
+
+    const response = await fetch("/api/manager/menus?date=" + date);
+    if (!checkLogin(response)) return;
+    if (!response.ok) { showMessage(await errorText(response), "danger"); return; }
+    const menus = await response.json();
+
+    const list = document.getElementById("menuList");
+    list.replaceChildren();
+
+    if (menus.length === 0) {
+      list.textContent = "Is date ke liye koi menu nahi hai.";
+      return;
+    }
+
+    menus.forEach(m => {
+      const card = document.createElement("div");
+      card.className = "border rounded p-2 mb-2";
+
+      const title = document.createElement("div");
+      title.className = "fw-bold";
+      title.textContent = m.mealType + " (deadline: " + m.choiceDeadline + ")";
+
+      const dishesLine = document.createElement("div");
+      // m.dishes ka shape DTO par depend karta hai; name ya string dono handle
+      dishesLine.textContent = (m.dishes || [])
+        .map(x => (typeof x === "string" ? x : (x.dishName || x.name)))
+        .join(", ");
+
+      card.appendChild(title);
+      card.appendChild(dishesLine);
+      list.appendChild(card);
+    });
+  }
+
+  // ---------- Page load par ----------
   loadDishes();
 </script>
 </body>
